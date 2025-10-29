@@ -1,27 +1,105 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type VoiceInfo = {
+  name?: string | null;
+  languageCodes?: string[] | null;
+  ssmlGender?: string | null;
+  naturalSampleRateHertz?: number | null;
+};
 
 export default function Home() {
   const [text, setText] = useState("");
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [voice, setVoice] = useState("ko-KR-Standard-A");
   const [rate, setRate] = useState(1.05);
   const [pitch, setPitch] = useState(0);
-  const [downloading, setDownloading] = useState(false);
+  const [busy, setBusy] = useState<"preview" | "download" | null>(null);
 
-  async function handleTTS() {
-    if (!text.trim()) return alert("텍스트를 입력하세요.");
-    setDownloading(true);
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice, rate, pitch }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "TTS 실패");
+  // 미리듣기 오디오
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+
+  // 보이스 목록 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/voices");
+        const j = await res.json();
+        if (j?.voices) {
+          setVoices(j.voices);
+          // ko-KR 기본 세팅 보이스가 없으면 첫 항목으로
+          const hasKorean = j.voices.some((v: VoiceInfo) =>
+            (v.languageCodes || []).includes("ko-KR")
+          );
+          if (!hasKorean && j.voices[0]?.name) {
+            setVoice(j.voices[0].name);
+          }
+        }
+      } catch {
+        // 무시: API 실패해도 기본값으로 작동
       }
-      const blob = await res.blob();
+    })();
+  }, []);
+
+  // 언어 필터(선택): 드롭다운이 너무 길면 ko-KR을 상단에
+  const sortedVoices = useMemo(() => {
+    const list = [...voices];
+    list.sort((a, b) => {
+      const aK = (a.languageCodes || []).includes("ko-KR") ? -1 : 0;
+      const bK = (b.languageCodes || []).includes("ko-KR") ? -1 : 0;
+      if (aK !== bK) return aK - bK; // ko-KR 먼저
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    return list;
+  }, [voices]);
+
+  function stepRate(delta: number) {
+    setRate(v => {
+      const next = Math.round((v + delta) * 100) / 100;
+      return Math.min(4, Math.max(0.25, next));
+    });
+  }
+  function stepPitch(delta: number) {
+    setPitch(v => Math.min(20, Math.max(-20, v + delta)));
+  }
+
+  async function callTTS(): Promise<Blob> {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice, rate, pitch }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error || "TTS 실패");
+    }
+    return await res.blob();
+  }
+
+  async function onPreview() {
+    if (!text.trim()) return alert("텍스트를 입력하세요.");
+    setBusy("preview");
+    try {
+      const blob = await callTTS();
+      setPreviewBlob(blob);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } catch (e: any) {
+      alert(e?.message || "TTS 실패");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onDownload() {
+    if (!text.trim()) return alert("텍스트를 입력하세요.");
+    setBusy("download");
+    try {
+      const blob = await callTTS();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -29,61 +107,154 @@ export default function Home() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(e.message || "에러");
+      alert(e?.message || "TTS 실패");
     } finally {
-      setDownloading(false);
+      setBusy(null);
     }
   }
 
+  function downloadPreview() {
+    if (!previewBlob) return;
+    const url = URL.createObjectURL(previewBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tts_preview_${Date.now()}.mp3`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+    <main style={{ maxWidth: 820, margin: "0 auto", padding: 24, color: "#eee" }}>
+      <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>
         Google Cloud TTS (Vercel)
       </h1>
+
       <textarea
-        style={{ width: "100%", height: 240, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}
+        style={{
+          width: "100%", height: 260, padding: 12,
+          background: "#111", color: "#eee",
+          border: "1px solid #333", borderRadius: 10
+        }}
         placeholder="여기에 텍스트를 입력하세요"
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, margin: "16px 0" }}>
-        <label style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: 12, marginBottom: 4 }}>Voice</span>
-          <input
+
+      {/* 컨트롤 바 */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12, marginTop: 16 }}>
+        {/* Voice */}
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>Voice</span>
+          <select
             value={voice}
             onChange={(e) => setVoice(e.target.value)}
-            placeholder="ko-KR-Standard-A"
-            style={{ padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
-          />
+            style={{ padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
+          >
+            {/* ko-KR 보이스가 있으면 먼저 */}
+            {sortedVoices.map((v) => {
+              const label = `${v.name} ${(v.languageCodes || []).join(", ")} ${v.ssmlGender ? `(${v.ssmlGender})` : ""}`;
+              return (
+                <option key={`${v.name}`} value={v.name || ""}>
+                  {label}
+                </option>
+              );
+            })}
+            {/* API 실패 대비 기본값 */}
+            {sortedVoices.length === 0 && (
+              <>
+                <option value="ko-KR-Standard-A">ko-KR-Standard-A (ko-KR)</option>
+                <option value="ko-KR-Standard-B">ko-KR-Standard-B (ko-KR)</option>
+                <option value="ko-KR-Standard-C">ko-KR-Standard-C (ko-KR)</option>
+                <option value="ko-KR-Standard-D">ko-KR-Standard-D (ko-KR)</option>
+              </>
+            )}
+          </select>
         </label>
-        <label style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: 12, marginBottom: 4 }}>Rate</span>
-          <input
-            type="number"
-            step="0.05"
-            value={rate}
-            onChange={(e) => setRate(parseFloat(e.target.value))}
-            style={{ padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
-          />
+
+        {/* Rate (항상 보이는 + / -) */}
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>Rate</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="number"
+              step="0.05"
+              min={0.25}
+              max={4}
+              value={rate}
+              onChange={(e) => setRate(parseFloat(e.target.value))}
+              style={{ flex: 1, padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
+            />
+            <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={() => stepRate(-0.05)} style={btnMini}>−</button>
+              <button onClick={() => stepRate(+0.05)} style={btnMini}>+</button>
+            </div>
+          </div>
         </label>
-        <label style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: 12, marginBottom: 4 }}>Pitch</span>
-          <input
-            type="number"
-            step="1"
-            value={pitch}
-            onChange={(e) => setPitch(parseFloat(e.target.value))}
-            style={{ padding: 8, border: "1px solid #ddd", borderRadius: 8 }}
-          />
+
+        {/* Pitch (항상 보이는 + / -) */}
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>Pitch</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              type="number"
+              step={1}
+              min={-20}
+              max={20}
+              value={pitch}
+              onChange={(e) => setPitch(parseFloat(e.target.value))}
+              style={{ flex: 1, padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
+            />
+            <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={() => stepPitch(-1)} style={btnMini}>−</button>
+              <button onClick={() => stepPitch(+1)} style={btnMini}>+</button>
+            </div>
+          </div>
         </label>
       </div>
-      <button
-        onClick={handleTTS}
-        disabled={downloading}
-        style={{ background: "#000", color: "#fff", padding: "10px 14px", borderRadius: 8, opacity: downloading ? 0.6 : 1 }}
-      >
-        {downloading ? "생성 중..." : "MP3 생성 & 다운로드"}
-      </button>
+
+      {/* 액션 버튼 */}
+      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+        <button onClick={onPreview} disabled={busy !== null} style={btnPrimary}>
+          {busy === "preview" ? "미리듣기 생성 중..." : "미리듣기"}
+        </button>
+        <button onClick={onDownload} disabled={busy !== null} style={btnSecondary}>
+          {busy === "download" ? "다운로드 생성 중..." : "MP3 다운로드"}
+        </button>
+      </div>
+
+      {/* 미리듣기 플레이어 + 다운로드 */}
+      {previewUrl && (
+        <div style={{ marginTop: 14, padding: 12, border: "1px solid #333", borderRadius: 10, background: "#0d0d0d" }}>
+          <audio src={previewUrl} controls style={{ width: "100%" }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={downloadPreview} style={btnOutline}>미리듣기 파일 다운로드</button>
+            <button onClick={() => { if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setPreviewBlob(null); } }} style={btnGhost}>
+              미리듣기 닫기
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
+
+const btnPrimary: React.CSSProperties = {
+  background: "#0ea5e9", color: "#000", padding: "10px 14px",
+  borderRadius: 10, border: "none", fontWeight: 700
+};
+const btnSecondary: React.CSSProperties = {
+  background: "#111", color: "#fff", padding: "10px 14px",
+  borderRadius: 10, border: "1px solid #333", fontWeight: 700
+};
+const btnMini: React.CSSProperties = {
+  padding: "8px 12px", borderRadius: 10,
+  border: "1px solid #333", background: "#1a1a1a", color: "#eee"
+};
+const btnOutline: React.CSSProperties = {
+  padding: "8px 12px", borderRadius: 10,
+  border: "1px solid #333", background: "transparent", color: "#eee"
+};
+const btnGhost: React.CSSProperties = {
+  padding: "8px 12px", borderRadius: 10,
+  border: "none", background: "transparent", color: "#aaa"
+};
