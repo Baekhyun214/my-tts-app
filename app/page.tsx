@@ -185,8 +185,8 @@ export default function Home() {
               style={{ flex: 1, padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
             />
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => stepRate(-0.05)} style={btnMini}>−</button>
-              <button onClick={() => stepRate(+0.05)} style={btnMini}>+</button>
+                <button onClick={() => stepRate(-0.05)} style={btnMini}>▼</button>
+                <button onClick={() => stepRate(+0.05)} style={btnMini}>▲</button>
             </div>
           </div>
         </label>
@@ -205,8 +205,8 @@ export default function Home() {
               style={{ flex: 1, padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
             />
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => stepPitch(-1)} style={btnMini}>−</button>
-              <button onClick={() => stepPitch(+1)} style={btnMini}>+</button>
+              <button onClick={() => stepPitch(-1)} style={btnMini}>▼</button>
+              <button onClick={() => stepPitch(+1)} style={btnMini}>▲</button>
             </div>
           </div>
         </label>
