@@ -153,6 +153,24 @@ export default function Home() {
             style={{ padding: 10, borderRadius: 10, background: "#111", color: "#eee", border: "1px solid #333" }}
           >
             {/* ...보이스 옵션 렌더링 그대로... */}
+            {/* ko-KR 보이스가 있으면 먼저 */}
+            {sortedVoices.map((v) => {
+              const label = `${v.name} ${(v.languageCodes || []).join(", ")} ${v.ssmlGender ? `(${v.ssmlGender})` : ""}`;
+              return (
+                <option key={`${v.name}`} value={v.name || ""}>
+                  {label}
+                </option>
+              );
+            })}
+            {/* API 실패 대비 기본값 */}
+            {sortedVoices.length === 0 && (
+              <>
+                <option value="ko-KR-Standard-A">ko-KR-Standard-A (ko-KR)</option>
+                <option value="ko-KR-Standard-B">ko-KR-Standard-B (ko-KR)</option>
+                <option value="ko-KR-Standard-C">ko-KR-Standard-C (ko-KR)</option>
+                <option value="ko-KR-Standard-D">ko-KR-Standard-D (ko-KR)</option>
+              </>
+            )}
           </select>
         </label>
 
