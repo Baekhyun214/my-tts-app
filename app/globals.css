@@ -33,3 +33,37 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield; /* Firefox */
 }
+
+/* 스크롤 방지 & 박스 사이즈 정리 */
+html, body { overflow-x: hidden; }
+*, *::before, *::after { box-sizing: border-box; }
+
+/* 컨트롤 영역 기본(데스크톱) */
+.controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* 공통 입력 스타일 */
+.field input, .field select, .field textarea {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* 버튼 줄 */
+.btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 미리듣기 플레이어 */
+.audio-wrap audio { width: 100%; }
+
+/* 📱 모바일(640px 이하)에서 세로 스택 + 좌우 스크롤 제거 */
+@media (max-width: 640px) {
+  main { padding: 16px !important; }
+  .controls { grid-template-columns: 1fr; }     /* Voice / Rate / Pitch 세로 배치 */
+  .btns { flex-direction: column; }             /* 버튼도 세로로 */
+}
