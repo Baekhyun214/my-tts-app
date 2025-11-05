@@ -6,6 +6,18 @@ import { NextRequest, NextResponse } from "next/server";
 
 const YT = "https://www.googleapis.com/youtube/v3";
 
+type VideoItem = {
+  id: string;
+  title: string;
+  channelTitle: string;
+  channelId?: string;
+  publishedAt: string;
+  thumbnail?: string;
+  durationSec: number;
+  viewCount: number;
+};
+
+
 type Filters = {
   q: string;
   type?: "all" | "long" | "short";               // 영상종류(롱폼/숏폼/전체)
@@ -71,7 +83,8 @@ export async function POST(req: NextRequest) {
       { cache: "no-store" }
     );
     const videosJson = await videosRes.json();
-    let videos = (videosJson.items || []).map((v: any) => {
+
+    let videos: VideoItem[] = (videosJson.items || []).map((v: any): VideoItem => {
       const durSec = isoDurToSec(v.contentDetails?.duration || "PT0S");
       const views = parseInt(v.statistics?.viewCount || "0", 10);
       const chId = v.snippet?.channelId;
@@ -87,21 +100,21 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // 추가 길이 상한(예: "00:30 이내")
+    // 추가 길이 상한
     if (body.lengthCapSec) {
-      videos = videos.filter(v => v.durationSec <= (body.lengthCapSec as number));
+      videos = videos.filter((v: VideoItem) => v.durationSec <= (body.lengthCapSec as number));
     }
 
-    // '숏폼'을 명확히 60초 이내로 정의하고 싶다면 여기에서 재필터링:
+    // 숏폼/롱폼 재필터링
     if (body.type === "short") {
-      videos = videos.filter(v => v.durationSec <= 60);
+      videos = videos.filter((v: VideoItem) => v.durationSec <= 60);
     } else if (body.type === "long") {
-      videos = videos.filter(v => v.durationSec >= 20 * 60);
+      videos = videos.filter((v: VideoItem) => v.durationSec >= 20 * 60);
     }
 
-    // 조회수 밴드 필터
+    // 조회수 밴드
     if (body.viewBand && body.viewBand !== "all") {
-      videos = videos.filter(v => {
+      videos = videos.filter((v: VideoItem) => {
         if (body.viewBand === "lt100k") return v.viewCount < 100_000;
         if (body.viewBand === "100k_1m") return v.viewCount >= 100_000 && v.viewCount < 1_000_000;
         if (body.viewBand === "gte1m") return v.viewCount >= 1_000_000;
