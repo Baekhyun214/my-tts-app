@@ -4,8 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 
-const YT = "https://www.googleapis.com/youtube/v3";
-
 type VideoItem = {
   id: string;
   title: string;
@@ -16,6 +14,11 @@ type VideoItem = {
   durationSec: number;
   viewCount: number;
 };
+
+
+const YT = "https://www.googleapis.com/youtube/v3";
+
+
 
 
 type Filters = {
@@ -85,42 +88,41 @@ export async function POST(req: NextRequest) {
     const videosJson = await videosRes.json();
 
     let videos: VideoItem[] = (videosJson.items || []).map((v: any): VideoItem => {
-      const durSec = isoDurToSec(v.contentDetails?.duration || "PT0S");
-      const views = parseInt(v.statistics?.viewCount || "0", 10);
-      const chId = v.snippet?.channelId;
-      return {
-        id: v.id,
-        title: v.snippet?.title || "",
-        channelTitle: v.snippet?.channelTitle || "",
-        channelId: chId,
-        publishedAt: v.snippet?.publishedAt,
-        thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url,
-        durationSec: durSec,
-        viewCount: views,
-      };
-    });
+  const durSec = isoDurToSec(v.contentDetails?.duration || "PT0S");
+  const views = parseInt(v.statistics?.viewCount || "0", 10);
+  return {
+    id: v.id,
+    title: v.snippet?.title || "",
+    channelTitle: v.snippet?.channelTitle || "",
+    channelId: v.snippet?.channelId,
+    publishedAt: v.snippet?.publishedAt,
+    thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url,
+    durationSec: durSec,
+    viewCount: views,
+  };
+});
 
     // 추가 길이 상한
-    if (body.lengthCapSec) {
-      videos = videos.filter((v: VideoItem) => v.durationSec <= (body.lengthCapSec as number));
-    }
+if (body.lengthCapSec) {
+  videos = videos.filter((v: VideoItem) => v.durationSec <= (body.lengthCapSec as number));
+}
 
-    // 숏폼/롱폼 재필터링
-    if (body.type === "short") {
-      videos = videos.filter((v: VideoItem) => v.durationSec <= 60);
-    } else if (body.type === "long") {
-      videos = videos.filter((v: VideoItem) => v.durationSec >= 20 * 60);
-    }
+// 숏폼/롱폼 재필터링
+if (body.type === "short") {
+  videos = videos.filter((v: VideoItem) => v.durationSec <= 60);
+} else if (body.type === "long") {
+  videos = videos.filter((v: VideoItem) => v.durationSec >= 20 * 60);
+}
 
-    // 조회수 밴드
-    if (body.viewBand && body.viewBand !== "all") {
-      videos = videos.filter((v: VideoItem) => {
-        if (body.viewBand === "lt100k") return v.viewCount < 100_000;
-        if (body.viewBand === "100k_1m") return v.viewCount >= 100_000 && v.viewCount < 1_000_000;
-        if (body.viewBand === "gte1m") return v.viewCount >= 1_000_000;
-        return true;
-      });
-    }
+// 조회수 밴드
+if (body.viewBand && body.viewBand !== "all") {
+  videos = videos.filter((v: VideoItem) => {
+    if (body.viewBand === "lt100k") return v.viewCount < 100_000;
+    if (body.viewBand === "100k_1m") return v.viewCount >= 100_000 && v.viewCount < 1_000_000;
+    if (body.viewBand === "gte1m") return v.viewCount >= 1_000_000;
+    return true;
+  });
+}
 
     // 필요 시 채널 구독자 수 가져오기(구독자순 정렬용)
     let subsMap: Record<string, number> = {};
