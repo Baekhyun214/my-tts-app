@@ -1,10 +1,11 @@
 // app/layout.tsx
 import "./globals.css";
-import Link from "next/link"; // ⬅️ 이 줄이 꼭 있어야 합니다!
+import type { ReactNode, CSSProperties } from "react";
+import Link from "next/link"; // ✅ 반드시 default import
 
 export const metadata = { title: "TTS & YouTube Analyzer" };
 
-const tabStyle: React.CSSProperties = {
+const tabStyle: CSSProperties = {
   padding: "8px 12px",
   border: "1px solid #333",
   borderRadius: 10,
@@ -14,7 +15,7 @@ const tabStyle: React.CSSProperties = {
   fontWeight: 700,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <body style={{ background: "#0b0b0b", color: "#eee" }}>
